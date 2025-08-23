@@ -246,25 +246,40 @@ elif tab=="🧾 Card Info":
     st.write(f"Championships: {card.championships}, Awards: {', '.join(card.awards) if card.awards else 'None'}")
 
 # --------------------------
-# Awards Tab
+# Awards Tab - Full History
 # --------------------------
 elif tab=="🏆 Awards":
-    st.header("Season Awards")
-    df=league.standings()
+    st.header("Season Awards & History")
+
+    # Current season awards
+    df = league.standings()
     if df.empty:
         st.write("No season data yet.")
     else:
+        st.subheader(f"Current Season {league.season} Awards")
         # MVP - highest wins
-        mvp=df.iloc[0]
+        mvp = df.iloc[0]
         st.write(f"🏅 MVP: {mvp['Emoji']} {mvp['Name']} ({mvp['Grade']})")
         # Most Improved
-        most_improved=df.iloc[random.randint(0,len(df)-1)]
+        most_improved = df.iloc[random.randint(0, len(df)-1)]
         st.write(f"🌟 Most Improved: {most_improved['Emoji']} {most_improved['Name']} ({most_improved['Grade']})")
         # All Clash Team - top 10
         st.write("🔥 All Clash Team (Top 10 Cards):")
-        top10=df.head(10)
-        for i,row in top10.iterrows():
+        top10 = df.head(10)
+        for i, row in top10.iterrows():
             st.write(f"{row['Emoji']} {row['Name']} ({row['Grade']}) W:{row['W']} L:{row['L']}")
+
+    # Previous seasons awards
+    if league.history:
+        st.subheader("🏆 Previous Seasons Awards")
+        for s in league.history:
+            st.write(f"**Season {s['season']}**")
+            if "awards" in s and s["awards"]:
+                for award in s["awards"]:
+                    st.write(f"{award['Emoji']} {award['Card']} -> {award['Title']}")
+            else:
+                st.write("No awards recorded for this season.")
+
 
 # --------------------------
 # Playoffs Tab - Interactive Simulation
@@ -430,5 +445,6 @@ if st.sidebar.button("➡️ Start Next Season"):
 # --------------------------
 # End of Full App
 # --------------------------
+
 
 
