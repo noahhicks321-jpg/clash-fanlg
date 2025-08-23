@@ -362,12 +362,11 @@ elif tab=="📅 Calendar":
     st.dataframe(df)
 
 # --------------------------
-# Balance Changes Tab - Editable Table with Deltas
+# Balance Changes Tab - Editable Table with Auto OVR & Buff/Nerf
 # --------------------------
 elif tab=="🛠 Balance Changes":
     st.header("Balance Changes - Edit Stats in Table")
 
-    # Prepare table data with delta columns
     data = []
     for c in league.cards:
         data.append({
@@ -380,56 +379,71 @@ elif tab=="🛠 Balance Changes":
             "HP Δ": 0,
             "Range": c.range,
             "Range Δ": 0,
+            "OVR": round(c.ovr(),1),
             "Buff/Nerf": c.buff_nerf or ""
         })
     df = pd.DataFrame(data)
 
-    # Editable table
-    edited_df = st.data_editor(
-        df,
-        num_rows="dynamic",
-        use_container_width=True
-    )
+    edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True)
 
-    # Update delta columns dynamically
+    # Update delta columns and auto OVR/Buff-Nerf
     for index, row in edited_df.iterrows():
-        c = next(card for card in league.cards if card.name == row["Card"])
-        edited_df.at[index, "ATK Damage Δ"] = row["ATK Damage"] - c.atk_dmg
-        edited_df.at[index, "ATK Speed Δ"] = row["ATK Speed"] - c.atk_speed
-        edited_df.at[index, "HP Δ"] = row["HP"] - c.health
-        edited_df.at[index, "Range Δ"] = row["Range"] - c.range
+        c = next(card for card in league.cards if card.name==row["Card"])
+        delta_atk = row["ATK Damage"] - c.atk_dmg
+        delta_as = row["ATK Speed"] - c.atk_speed
+        delta_hp = row["HP"] - c.health
+        delta_range = row["Range"] - c.range
+        edited_df.at[index, "ATK Damage Δ"] = delta_atk
+        edited_df.at[index, "ATK Speed Δ"] = delta_as
+        edited_df.at[index, "HP Δ"] = delta_hp
+        edited_df.at[index, "Range Δ"] = delta_range
 
-    st.dataframe(edited_df, use_container_width=True)  # Show updated table with deltas
+        # Calculate new OVR with edited stats
+        temp_card = Card(c.name)
+        temp_card.atk_dmg = row["ATK Damage"]
+        temp_card.atk_speed = row["ATK Speed"]
+        temp_card.health = row["HP"]
+        temp_card.range = row["Range"]
+        new_ovr = temp_card.ovr()
+        edited_df.at[index, "OVR"] = round(new_ovr,1)
 
-    # Confirm changes button
+        # Auto Buff/Nerf based on OVR change
+        if new_ovr > c.ovr():
+            edited_df.at[index, "Buff/Nerf"] = "B"
+        elif new_ovr < c.ovr():
+            edited_df.at[index, "Buff/Nerf"] = "N"
+        else:
+            edited_df.at[index, "Buff/Nerf"] = ""
+
+    # Highlight Buff/Nerf
+    def highlight(row):
+        if row["Buff/Nerf"] == "B":
+            return ['background-color: #d4edda']*len(row)
+        elif row["Buff/Nerf"] == "N":
+            return ['background-color: #f8d7da']*len(row)
+        else:
+            return ['']*len(row)
+
+    st.dataframe(edited_df.style.apply(highlight, axis=1), use_container_width=True)
+
+    # Confirm changes
     if st.button("Confirm Changes"):
         changes_applied = 0
         for index, row in edited_df.iterrows():
-            c = next(card for card in league.cards if card.name == row["Card"])
-            if (c.atk_dmg != row["ATK Damage"] or
-                c.atk_speed != row["ATK Speed"] or
-                c.health != row["HP"] or
-                c.range != row["Range"]):
-                old_stats = {
-                    "ATK": c.atk_dmg,
-                    "ATK_Speed": c.atk_speed,
-                    "HP": c.health,
-                    "Range": c.range
-                }
-                # Apply new stats
+            c = next(card for card in league.cards if card.name==row["Card"])
+            if (c.atk_dmg != row["ATK Damage"] or c.atk_speed != row["ATK Speed"] 
+                or c.health != row["HP"] or c.range != row["Range"]):
+                old_stats = {"ATK": c.atk_dmg,"ATK_Speed":c.atk_speed,"HP":c.health,"Range":c.range,"OVR":c.ovr()}
                 c.atk_dmg = row["ATK Damage"]
                 c.atk_speed = row["ATK Speed"]
                 c.health = row["HP"]
                 c.range = row["Range"]
-                # Update Buff/Nerf marker
-                c.buff_nerf = "B" if row["Buff/Nerf"].upper() == "B" else "N"
-                changes_applied += 1
+                c.buff_nerf = row["Buff/Nerf"]
+                changes_applied +=1
+                # Log in balance history
+                league.balance_history.append({"Season": league.season, "Card": c.name, "OldStats": old_stats})
+        st.success(f"Applied {changes_applied} changes with auto OVR and Buff/Nerf!")
 
-                # Save to balance history
-                season_changes = {"Card": c.name, "Changes": old_stats}
-                league.balance_history.append({"Season": league.season, "Changes": [season_changes]})
-
-        st.success(f"Applied {changes_applied} balance changes for Season {league.season}!")
 
 # --------------------------
 # League History Tab
@@ -494,6 +508,7 @@ if st.sidebar.button("➡️ Start Next Season"):
 # --------------------------
 # End of Full App
 # --------------------------
+
 
 
 
