@@ -62,8 +62,6 @@ def next_season_icon(season_num):
 # --------------------------
 # Card Class
 # --------------------------
-import random
-
 class Card:
     def __init__(self, name):
         self.name = name
@@ -581,6 +579,7 @@ if st.sidebar.button("➡️ Start Next Season"):
 # --------------------------
 # End of Full App
 # --------------------------
+
 
 
 
