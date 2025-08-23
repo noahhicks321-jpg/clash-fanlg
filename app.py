@@ -62,44 +62,98 @@ def next_season_icon(season_num):
 # --------------------------
 # Card Class
 # --------------------------
+import random
+
 class Card:
-    def __init__(self,name):
-        self.name=name
-        self.atk_dmg=random.randint(80,1200)
-        self.atk_type=random.choice(["Ground Melee","Air Melee","Ground Ranged","Air Ranged"])
-        self.atk_speed=round(random.uniform(1.0,3.0),2)
-        self.card_speed=random.choice(["Very Slow","Slow","Medium","Fast","Very Fast"])
-        self.range=random.randint(1,10)
-        self.health=random.randint(900,2500)
-        self.record={"wins":0,"losses":0}
-        self.streak=0
-        self.awards=[]
-        self.championships=0
-        self.placements=[]
-        self.buff_nerf=None
+    def __init__(self, name):
+        self.name = name
+        
+        # Core stats
+        self.atk_dmg = random.randint(80, 1200)        # Attack damage
+        self.atk_speed = round(random.uniform(0.5, 3.0), 2)  # Attack speed in seconds
+        self.health = random.randint(900, 2500)       # HP
+        self.range = random.randint(1, 10)            # Range 1-10
+        self.atk_type = random.choice([
+            "Ground Melee", "Air Melee", "Ground Ranged", "Air Ranged"
+        ])
+        self.card_speed = random.choice([
+            "Very Slow", "Slow", "Medium", "Fast", "Very Fast"
+        ])
+        
+        # Meta information
+        self.buff_nerf = ""          # B or N
+        self.emoji = self.assign_emoji(name)  # Assign emoji for display
+        self.season_stats = {}        # Stores per-season stats: wins, losses, placements, awards
+        self.total_wins = 0
+        self.total_losses = 0
+        self.playoff_wins = 0
+        self.playoff_games = 0
 
-    def overall_rating(self):
-        dmg = (self.atk_dmg/1200)*100*0.19
-        spd = ((3.0-self.atk_speed)/2.0)*100*0.11
-        rng = (self.range/10)*100*0.07
-        hp = (self.health/2500)*100*0.22
-        type_val = 0.09*(100 if "Ranged" in self.atk_type else 70)
-        speed_val = {"Very Slow":60,"Slow":70,"Medium":80,"Fast":90,"Very Fast":100}[self.card_speed]*0.16
-        rng_factor = random.randint(60,100)*0.16
-        return round(dmg+spd+rng+hp+type_val+speed_val+rng_factor)
+    def assign_emoji(self, name):
+        """Assign emoji to a card based on its name."""
+        mapping = {
+            "Hog Rider":"🐗",
+            "P.E.K.K.A":"🤖",
+            "Golden Knight":"🛡️",
+            "Electro Wizard":"⚡",
+            "Ice Spirit":"❄️",
+            "Fireball":"🔥",
+            "Arrows":"🏹",
+            "Bats":"🦇",
+            "Goblin Gang":"👹",
+            "Prince":"🐴",
+            # Add all other real Clash Royale card names here
+        }
+        return mapping.get(name, "🃏")  # Default emoji if name not in mapping
 
-    def grade(self):
-        ovr=self.overall_rating()
-        if ovr>=98: return "Meta"
-        elif ovr>=95: return "A+"
-        elif ovr>=90: return "A"
-        elif ovr>=84: return "B"
-        elif ovr>=77: return "C"
-        elif ovr>=71: return "D"
-        else: return "F"
+    def ovr(self):
+        """
+        Calculates card overall rating (OVR) scaled between 60 and 100.
+        Uses weighted contributions from stats.
+        """
+        # Map attack type and speed to numeric values
+        type_val = 1 if "Melee" in self.atk_type else 2
+        speed_val = {"Very Slow":1,"Slow":2,"Medium":3,"Fast":4,"Very Fast":5}[self.card_speed]
 
-    def emoji(self):
-        return card_emoji(self.name)
+        # Weighted sum
+        raw_score = (
+            0.19 * self.atk_dmg +
+            0.11 * self.atk_speed * 100 +
+            0.07 * self.range * 100 +
+            0.22 * self.health / 10 +
+            0.09 * type_val * 50 +
+            0.16 * speed_val * 100
+        )
+
+        # Scale to 60-100
+        ovr_score = (raw_score - 0) / (2000 - 0) * 40 + 60  # adjust max/min as needed
+        return round(min(100, max(60, ovr_score)),1)
+    
+    def record_game(self, win=True, playoff=False):
+        """Update stats after a game."""
+        if win:
+            self.total_wins += 1
+            if playoff: self.playoff_wins += 1
+        else:
+            self.total_losses += 1
+        if playoff: self.playoff_games += 1
+
+    def reset_season(self):
+        """Reset season stats but keep career stats."""
+        self.season_stats = {
+            "wins":0,
+            "losses":0,
+            "playoff_wins":0,
+            "playoff_games":0,
+            "placement":None,
+            "awards":[]
+        }
+
+    def get_record(self):
+        """Return current season record as string."""
+        wins = self.season_stats.get("wins",0)
+        losses = self.season_stats.get("losses",0)
+        return f"{wins}-{losses}"
 
 # --------------------------
 # League Class
@@ -362,23 +416,14 @@ elif tab=="📅 Calendar":
     st.dataframe(df)
 
 # --------------------------
-# Balance Changes Tab - Inline OVR Calculation without method
+# Balance Changes Tab - Using Card.ovr() Method
 # --------------------------
-elif tab=="🛠 Balance Changes":
+elif tab == "🛠 Balance Changes":
     st.header("Balance Changes - Edit Stats in Table")
 
+    # Prepare data for table
     data = []
     for c in league.cards:
-        # Compute OVR inline
-        type_val = 1 if "Melee" in c.atk_type else 2
-        speed_val = {"Very Slow":1,"Slow":2,"Medium":3,"Fast":4,"Very Fast":5}.get(c.card_speed,3)
-        rng_val = c.range
-        atk_val = c.atk_dmg
-        atk_speed_val = c.atk_speed
-        hp_val = c.health
-        ovr = round(min(100, (0.19*atk_val + 0.11*atk_speed_val*100 + 0.07*rng_val*100 +
-               0.22*hp_val/10 + 0.09*type_val*50 + 0.16*speed_val*100 + 16)/20),1)
-
         data.append({
             "Card": c.name,
             "ATK Damage": c.atk_dmg,
@@ -389,16 +434,19 @@ elif tab=="🛠 Balance Changes":
             "HP Δ": 0,
             "Range": c.range,
             "Range Δ": 0,
-            "OVR": ovr,
+            "OVR": round(c.ovr(),1),
             "Buff/Nerf": c.buff_nerf or ""
         })
     df = pd.DataFrame(data)
 
+    # Editable table
     edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True)
 
-    # Update delta columns and recalc OVR
+    # Update deltas and auto Buff/Nerf
     for index, row in edited_df.iterrows():
-        c = next(card for card in league.cards if card.name==row["Card"])
+        c = next(card for card in league.cards if card.name == row["Card"])
+
+        # Delta calculations
         delta_atk = row["ATK Damage"] - c.atk_dmg
         delta_as = row["ATK Speed"] - c.atk_speed
         delta_hp = row["HP"] - c.health
@@ -408,28 +456,27 @@ elif tab=="🛠 Balance Changes":
         edited_df.at[index, "HP Δ"] = delta_hp
         edited_df.at[index, "Range Δ"] = delta_range
 
-        # Inline OVR calculation
-        type_val = 1 if "Melee" in c.atk_type else 2
-        speed_val = {"Very Slow":1,"Slow":2,"Medium":3,"Fast":4,"Very Fast":5}.get(c.card_speed,3)
-        rng_val = row["Range"]
-        atk_val = row["ATK Damage"]
-        atk_speed_val = row["ATK Speed"]
-        hp_val = row["HP"]
-        new_ovr = round(min(100, (0.19*atk_val + 0.11*atk_speed_val*100 + 0.07*rng_val*100 +
-                   0.22*hp_val/10 + 0.09*type_val*50 + 0.16*speed_val*100 + 16)/20),1)
-        edited_df.at[index,"OVR"] = new_ovr
+        # Calculate new OVR using method
+        temp_card = Card(c.name)
+        temp_card.atk_dmg = row["ATK Damage"]
+        temp_card.atk_speed = row["ATK Speed"]
+        temp_card.health = row["HP"]
+        temp_card.range = row["Range"]
+        temp_card.atk_type = c.atk_type
+        temp_card.card_speed = c.card_speed
+        new_ovr = temp_card.ovr()
+        edited_df.at[index, "OVR"] = new_ovr
 
-        # Auto Buff/Nerf
-        old_ovr = round(min(100, (0.19*c.atk_dmg + 0.11*c.atk_speed*100 + 0.07*c.range*100 +
-                   0.22*c.health/10 + 0.09*type_val*50 + 0.16*speed_val*100 + 16)/20),1)
+        # Auto Buff/Nerf based on OVR change
+        old_ovr = c.ovr()
         if new_ovr > old_ovr:
-            edited_df.at[index,"Buff/Nerf"]="B"
+            edited_df.at[index, "Buff/Nerf"] = "B"
         elif new_ovr < old_ovr:
-            edited_df.at[index,"Buff/Nerf"]="N"
+            edited_df.at[index, "Buff/Nerf"] = "N"
         else:
-            edited_df.at[index,"Buff/Nerf"]=""
+            edited_df.at[index, "Buff/Nerf"] = ""
 
-    # Highlight buffs and nerfs
+    # Highlight buffs/nerfs
     def highlight(row):
         if row["Buff/Nerf"] == "B":
             return ['background-color: #d4edda']*len(row)
@@ -444,18 +491,32 @@ elif tab=="🛠 Balance Changes":
     if st.button("Confirm Changes"):
         changes_applied = 0
         for index, row in edited_df.iterrows():
-            c = next(card for card in league.cards if card.name==row["Card"])
+            c = next(card for card in league.cards if card.name == row["Card"])
             if (c.atk_dmg != row["ATK Damage"] or c.atk_speed != row["ATK Speed"] 
                 or c.health != row["HP"] or c.range != row["Range"]):
-                old_stats = {"ATK": c.atk_dmg,"ATK_Speed":c.atk_speed,"HP":c.health,"Range":c.range,"OVR":old_ovr}
+                old_stats = {
+                    "ATK": c.atk_dmg,
+                    "ATK_Speed": c.atk_speed,
+                    "HP": c.health,
+                    "Range": c.range,
+                    "OVR": round(c.ovr(),1)
+                }
+                # Apply new stats
                 c.atk_dmg = row["ATK Damage"]
                 c.atk_speed = row["ATK Speed"]
                 c.health = row["HP"]
                 c.range = row["Range"]
                 c.buff_nerf = row["Buff/Nerf"]
-                changes_applied +=1
-                league.balance_history.append({"Season": league.season, "Card": c.name, "OldStats": old_stats})
-        st.success(f"Applied {changes_applied} changes with auto OVR and Buff/Nerf!")
+                changes_applied += 1
+
+                # Log to balance history
+                league.balance_history.append({
+                    "Season": league.season,
+                    "Card": c.name,
+                    "OldStats": old_stats
+                })
+
+        st.success(f"Applied {changes_applied} balance changes with auto OVR and Buff/Nerf!")
 
 # --------------------------
 # League History Tab
@@ -520,6 +581,7 @@ if st.sidebar.button("➡️ Start Next Season"):
 # --------------------------
 # End of Full App
 # --------------------------
+
 
 
 
