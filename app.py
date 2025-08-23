@@ -191,16 +191,27 @@ tab = st.sidebar.radio("Select Tab", tabs)
 st.title(f"🏆 Clash Royale League - Season {league.season}")
 
 # --------------------------
-# Home Tab
+# Home Tab - Full Team Simulation Update
 # --------------------------
 if tab=="🏠 Home":
-    st.header("Home - Season Simulation")
-    col1,col2=st.columns(2)
+    st.header("Home - Season Simulation (Full Team)")
+    col1, col2 = st.columns(2)
+
+    def simulate_n_games_all(n):
+        # generate random pairings for all cards for n rounds
+        for _ in range(n):
+            cards_copy = league.cards.copy()
+            random.shuffle(cards_copy)
+            # pair off cards sequentially
+            for i in range(0, len(cards_copy)-1, 2):
+                league.simulate_game(cards_copy[i], cards_copy[i+1])
+
     with col1:
-        st.button("Simulate 1 Game", on_click=lambda: league.simulate_games(1))
-        st.button("Simulate 5 Games", on_click=lambda: league.simulate_games(5))
-        st.button("Simulate 10 Games", on_click=lambda: league.simulate_games(10))
-        st.button("Simulate Full Season", on_click=lambda: league.simulate_games(SEASON_GAMES))
+        st.button("Simulate 1 Game", on_click=lambda: simulate_n_games_all(1))
+        st.button("Simulate 5 Games", on_click=lambda: simulate_n_games_all(5))
+        st.button("Simulate 10 Games", on_click=lambda: simulate_n_games_all(10))
+        st.button("Simulate Full Season", on_click=lambda: simulate_n_games_all(SEASON_GAMES))
+
     with col2:
         st.dataframe(league.standings()[["Emoji","Name","W","L","Grade","Streak"]])
 
@@ -362,3 +373,4 @@ if st.sidebar.button("➡️ Start Next Season"):
 # --------------------------
 # End of Full App
 # --------------------------
+
