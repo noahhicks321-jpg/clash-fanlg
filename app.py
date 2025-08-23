@@ -362,25 +362,61 @@ elif tab=="📅 Calendar":
     st.dataframe(df)
 
 # --------------------------
-# Balance Changes Tab
+# Balance Changes Tab - Editable Table
 # --------------------------
 elif tab=="🛠 Balance Changes":
-    st.header("Balance Changes")
-    editable_cards=st.multiselect("Select up to 11 cards to edit", [c.name for c in league.cards], max_selections=MAX_BALANCE_CHANGE)
-    for name in editable_cards:
-        card=next(c for c in league.cards if c.name==name)
-        card.atk_dmg=st.number_input(f"ATK Damage ({card.name})", min_value=80, max_value=1200, value=card.atk_dmg)
-        card.atk_speed=st.number_input(f"ATK Speed ({card.name})", min_value=1.0, max_value=3.0, value=card.atk_speed)
-        card.health=st.number_input(f"HP ({card.name})", min_value=900, max_value=2500, value=card.health)
-        card.range=st.number_input(f"Range ({card.name})", min_value=1, max_value=10, value=card.range)
+    st.header("Balance Changes - Edit Stats in Table")
+    
+    # Prepare table data
+    data = []
+    for c in league.cards:
+        data.append({
+            "Card": c.name,
+            "ATK Damage": c.atk_dmg,
+            "ATK Speed": c.atk_speed,
+            "HP": c.health,
+            "Range": c.range,
+            "Buff/Nerf": c.buff_nerf or ""
+        })
+    df = pd.DataFrame(data)
+
+    # Editable table
+    edited_df = st.data_editor(
+        df,
+        num_rows="dynamic",
+        use_container_width=True
+    )
+
+    # Confirm changes button
     if st.button("Confirm Changes"):
-        for c in league.cards:
-            if c.name in editable_cards:
-                c.buff_nerf="B"
-            else:
-                c.buff_nerf=None
-        league.balance_changes_done=True
-        st.success("Balance changes applied!")
+        changes_applied = 0
+        for index, row in edited_df.iterrows():
+            c = next(card for card in league.cards if card.name == row["Card"])
+            # Check if stats changed
+            if (c.atk_dmg != row["ATK Damage"] or
+                c.atk_speed != row["ATK Speed"] or
+                c.health != row["HP"] or
+                c.range != row["Range"]):
+                # Record old stats in history
+                old_stats = {
+                    "ATK": c.atk_dmg,
+                    "ATK_Speed": c.atk_speed,
+                    "HP": c.health,
+                    "Range": c.range
+                }
+                c.buff_nerf = "B" if row["Buff/Nerf"].upper() == "B" else "N"
+                # Apply new stats
+                c.atk_dmg = row["ATK Damage"]
+                c.atk_speed = row["ATK Speed"]
+                c.health = row["HP"]
+                c.range = row["Range"]
+                changes_applied += 1
+
+                # Save to balance history for this season
+                season_changes = {"Card": c.name, "Changes": old_stats}
+                league.balance_history.append({"Season": league.season, "Changes": [season_changes]})
+
+        st.success(f"Applied {changes_applied} balance changes for Season {league.season}!")
 
 # --------------------------
 # League History Tab
@@ -445,6 +481,7 @@ if st.sidebar.button("➡️ Start Next Season"):
 # --------------------------
 # End of Full App
 # --------------------------
+
 
 
 
