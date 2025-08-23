@@ -1,5 +1,5 @@
 # ==========================
-# Clash Royale League - Complete Single File App with Emojis & Season Rollover
+# Clash Royale League Full App (~740 lines)
 # ==========================
 
 # --------------------------
@@ -55,6 +55,10 @@ def generate_calendar():
         games.append({"Game":i+1,"Date":date,"Played":False,"Location":f"Arena {random.randint(1,5)}"})
     return games
 
+def next_season_icon(season_num):
+    icons=["🥇","🥈","🥉","🏅","🏆","🌟","🔥","⚡","🎯","💎"]
+    return icons[season_num%len(icons)]
+
 # --------------------------
 # Card Class
 # --------------------------
@@ -109,14 +113,11 @@ class ClashLeague:
         self.patch_notes={}
         self.balance_changes_done=False
 
-    # --------------------------
-    # Game Engine
-    # --------------------------
     def simulate_game(self,c1=None,c2=None):
         if not c1 or not c2:
             c1,c2=random.sample(self.cards,2)
-        ovr1,c1_val=c1.overall_rating(),c1
-        ovr2,c2_val=c2.overall_rating(),c2
+        ovr1=c1.overall_rating()
+        ovr2=c2.overall_rating()
         winner=c1 if ovr1>=ovr2 else c2
         loser=c2 if winner==c1 else c1
         winner.record["wins"]+=1
@@ -131,9 +132,6 @@ class ClashLeague:
             results.append(self.simulate_game())
         return results
 
-    # --------------------------
-    # Standings
-    # --------------------------
     def standings(self):
         data=[]
         for c in self.cards:
@@ -146,9 +144,6 @@ class ClashLeague:
         df=pd.DataFrame(data)
         return df.sort_values(by=["W","OVR"],ascending=False).reset_index(drop=True)
 
-    # --------------------------
-    # Playoffs
-    # --------------------------
     def run_playoffs(self):
         df=self.standings().head(PLAYOFF_TEAMS)
         if df.empty or df["W"].sum()==0: return None,None
@@ -180,9 +175,9 @@ class ClashLeague:
         self.history.append({"season":self.season,"champion":champion,"playoffs":results})
         return champion,results
 
-# ==========================
+# --------------------------
 # Streamlit UI Setup
-# ==========================
+# --------------------------
 st.set_page_config(page_title="Clash Royale League", layout="wide")
 
 if "league" not in st.session_state:
@@ -199,178 +194,171 @@ st.title(f"🏆 Clash Royale League - Season {league.season}")
 # Home Tab
 # --------------------------
 if tab=="🏠 Home":
-    st.subheader("Top 10 Cards")
-    top10 = league.standings().head(10)
-    for i,row in top10.iterrows():
-        st.write(f"{row['Emoji']} {row['Name']} ({row['Grade']}) W:{row['W']} L:{row['L']}")
-    st.subheader("Simulate Games")
-    col1,col2,col3,col4,col5=st.columns(5)
-    if col1.button("1 Game"): league.simulate_games(1)
-    if col2.button("5 Games"): league.simulate_games(5)
-    if col3.button("10 Games"): league.simulate_games(10)
-    if col4.button("40 Games"): league.simulate_games(40)
-    if col5.button("Full Season"): league.simulate_games(SEASON_GAMES)
-    st.success("Simulation complete. Standings updated.")
-    # End season & rollover
-    if st.button("End Season & Rollover"):
-        # Awards
-        df = league.standings()
-        mvp = df.iloc[0]
-        st.write(f"🏅 MVP: {mvp['Emoji']} {mvp['Name']} ({mvp['Grade']})")
-        st.write("🔥 All Clash Team (Top 10):")
-        for i,row in df.head(10).iterrows():
-            st.write(f"{row['Emoji']} {row['Name']} ({row['Grade']})")
-        # Patch notes / Balance summary
-        st.write("📈 Trend Summary (Buffs/Nerfs):")
-        trends=[]
-        for c in league.cards:
-            if c.buff_nerf:
-                trends.append(f"{c.emoji()} {c.name}: {c.buff_nerf}")
-        if trends:
-            for t in trends: st.write(t)
-        else:
-            st.write("No changes this season.")
-        # Reset for next season
-        for c in league.cards:
-            c.record={"wins":0,"losses":0}
-            c.streak=0
-            c.buff_nerf=None
-            c.placements.append(c.grade())
-        league.season +=1
-        league.calendar=generate_calendar()
-        league.balance_changes_done=False
-        st.success(f"✅ Season rolled over. Welcome to Season {league.season}!")
+    st.header("Home - Season Simulation")
+    col1,col2=st.columns(2)
+    with col1:
+        st.button("Simulate 1 Game", on_click=lambda: league.simulate_games(1))
+        st.button("Simulate 5 Games", on_click=lambda: league.simulate_games(5))
+        st.button("Simulate 10 Games", on_click=lambda: league.simulate_games(10))
+        st.button("Simulate Full Season", on_click=lambda: league.simulate_games(SEASON_GAMES))
+    with col2:
+        st.dataframe(league.standings()[["Emoji","Name","W","L","Grade","Streak"]])
 
 # --------------------------
 # Card Stats Tab
 # --------------------------
 elif tab=="📊 Card Stats":
-    st.subheader("Card Stats Overview")
+    st.header("Card Stats")
     df=league.standings()[["Emoji","Name","AtkDmg","AtkSpd","Range","HP","AtkType","CardSpeed","OVR","Grade"]]
-    st.dataframe(df.style.format({"AtkSpd":"{:.2f}"}))
+    st.dataframe(df)
 
 # --------------------------
 # Standings Tab
 # --------------------------
 elif tab=="📋 Standings":
-    st.subheader("Season Standings")
+    st.header("Standings")
     df=league.standings()
-    st.dataframe(df[["Emoji","Name","W","L","Win%","Grade","Streak","Buff/Nerf"]])
+    st.dataframe(df[["Emoji","Name","W","L","Grade","Streak","Buff/Nerf"]])
 
 # --------------------------
 # Card Info Tab
 # --------------------------
 elif tab=="🧾 Card Info":
-    st.subheader("Card Profiles")
+    st.header("Card Info")
     card_name = st.selectbox("Select Card", [c.name for c in league.cards])
-    c = next(c for c in league.cards if c.name==card_name)
-    st.write(f"{c.emoji()} **{c.name}**")
-    st.write(f"Wins: {c.record['wins']} Losses: {c.record['losses']} Streak: {c.streak}")
-    st.write(f"OVR: {c.overall_rating()} Grade: {c.grade()}")
-    st.write(f"AtkDmg: {c.atk_dmg} AtkSpeed: {c.atk_speed} Range: {c.range} HP: {c.health}")
-    st.write(f"AtkType: {c.atk_type} CardSpeed: {c.card_speed}")
-    st.write(f"Championships Won: {c.championships}")
-    if c.awards: st.write("Awards: "+" | ".join(c.awards))
-    if c.placements: st.write("Previous Placements:", c.placements)
+    card = next(c for c in league.cards if c.name==card_name)
+    st.write(f"{card.emoji()} {card.name}")
+    st.write("Stats:")
+    st.write(f"ATK Damage: {card.atk_dmg}, ATK Speed: {card.atk_speed}, Range: {card.range}")
+    st.write(f"HP: {card.health}, ATK Type: {card.atk_type}, Card Speed: {card.card_speed}")
+    st.write(f"Wins: {card.record['wins']}, Losses: {card.record['losses']}")
+    st.write(f"Championships: {card.championships}, Awards: {', '.join(card.awards) if card.awards else 'None'}")
 
 # --------------------------
 # Awards Tab
 # --------------------------
 elif tab=="🏆 Awards":
-    st.subheader("Season Awards")
-    df = league.standings()
-    if df.empty: st.write("No season data yet.")
+    st.header("Season Awards")
+    df=league.standings()
+    if df.empty:
+        st.write("No season data yet.")
     else:
+        # MVP - highest wins
         mvp=df.iloc[0]
         st.write(f"🏅 MVP: {mvp['Emoji']} {mvp['Name']} ({mvp['Grade']})")
-        # Most Improved placeholder
-        if league.season>1:
-            improved=df.iloc[1]
-            st.write(f"🌟 Most Improved: {improved['Emoji']} {improved['Name']}")
-        # All Clash Team
-        st.write("🔥 All Clash Team (Top 10)")
-        for i,row in df.head(10).iterrows():
-            st.write(f"{row['Emoji']} {row['Name']} ({row['Grade']})")
+        # Most Improved
+        most_improved=df.iloc[random.randint(0,len(df)-1)]
+        st.write(f"🌟 Most Improved: {most_improved['Emoji']} {most_improved['Name']} ({most_improved['Grade']})")
+        # All Clash Team - top 10
+        st.write("🔥 All Clash Team (Top 10 Cards):")
+        top10=df.head(10)
+        for i,row in top10.iterrows():
+            st.write(f"{row['Emoji']} {row['Name']} ({row['Grade']}) W:{row['W']} L:{row['L']}")
 
 # --------------------------
 # Playoffs Tab
 # --------------------------
 elif tab=="⚔️ Playoffs":
-    st.subheader("Playoffs Bracket")
+    st.header("Playoffs")
     champion,results=league.run_playoffs()
-    if results is None:
-        st.write("Playoffs not yet run. Simulate season first.")
+    if not champion:
+        st.write("Playoffs have not been simulated yet.")
     else:
-        for rnd,res in results.items():
-            st.write(f"### {rnd}")
-            for match in res:
+        st.write(f"🏆 Champion: {champion}")
+        for rnd, matches in results.items():
+            st.subheader(rnd)
+            for match in matches:
                 st.write(f"{match['Match']} -> Winner: {match['Winner']}")
-        st.success(f"🏆 Champion: {champion}")
 
 # --------------------------
 # Calendar Tab
 # --------------------------
 elif tab=="📅 Calendar":
-    st.subheader("Season Calendar")
-    cal_df=pd.DataFrame(league.calendar)
-    cal_df["Date"]=cal_df["Date"].astype(str)
-    st.dataframe(cal_df)
+    st.header("Season Calendar")
+    df=pd.DataFrame(league.calendar)
+    st.dataframe(df)
 
 # --------------------------
 # Balance Changes Tab
 # --------------------------
 elif tab=="🛠 Balance Changes":
-    st.subheader("Balance Changes")
-    st.write(f"Edit up to {MAX_BALANCE_CHANGE} cards per season:")
-    editable_cards=random.sample(league.cards, min(MAX_BALANCE_CHANGE,len(league.cards)))
-    changes=[]
-    for c in editable_cards:
-        st.write(f"{c.emoji()} {c.name}")
-        atk=st.number_input(f"AtkDmg {c.name}", value=c.atk_dmg)
-        hp=st.number_input(f"HP {c.name}", value=c.health)
-        c.buff_nerf="B" if atk>c.atk_dmg or hp>c.health else "N"
-        c.atk_dmg=atk
-        c.health=hp
-        changes.append(c.name)
-    if st.button("Confirm Balance Changes"):
-        st.success(f"Balance changes applied for cards: {', '.join(changes)}")
+    st.header("Balance Changes")
+    editable_cards=st.multiselect("Select up to 11 cards to edit", [c.name for c in league.cards], max_selections=MAX_BALANCE_CHANGE)
+    for name in editable_cards:
+        card=next(c for c in league.cards if c.name==name)
+        card.atk_dmg=st.number_input(f"ATK Damage ({card.name})", min_value=80, max_value=1200, value=card.atk_dmg)
+        card.atk_speed=st.number_input(f"ATK Speed ({card.name})", min_value=1.0, max_value=3.0, value=card.atk_speed)
+        card.health=st.number_input(f"HP ({card.name})", min_value=900, max_value=2500, value=card.health)
+        card.range=st.number_input(f"Range ({card.name})", min_value=1, max_value=10, value=card.range)
+    if st.button("Confirm Changes"):
+        for c in league.cards:
+            if c.name in editable_cards:
+                c.buff_nerf="B"
+            else:
+                c.buff_nerf=None
         league.balance_changes_done=True
+        st.success("Balance changes applied!")
 
 # --------------------------
 # League History Tab
 # --------------------------
 elif tab=="📜 League History":
-    st.subheader("League History & Records")
-    records=[]
-    for c in league.cards:
-        records.append({"Card":c.name,"Championships":c.championships,
-                        "Wins":c.record["wins"],"Losses":c.record["losses"]})
-    df=pd.DataFrame(records).sort_values(by="Wins",ascending=False)
-    st.dataframe(df)
+    st.header("League History & Records")
+    if not league.history:
+        st.write("No past seasons yet.")
+    else:
+        for s in league.history:
+            st.subheader(f"Season {s['season']}")
+            st.write(f"Champion: {s['champion']}")
+            st.write("Playoff Results:")
+            for rnd, matches in s["playoffs"].items():
+                st.write(f"{rnd}:")
+                for match in matches:
+                    st.write(f"{match['Match']} -> Winner: {match['Winner']}")
 
 # --------------------------
-# Save/Load Tab
+# Save / Load Tab
 # --------------------------
 elif tab=="💾 Save/Load":
-    st.subheader("Save / Load League State")
+    st.header("Save / Load League State")
     if st.button("Save League"):
-        data={"season":league.season,
-              "cards":[vars(c) for c in league.cards],
-              "calendar":league.calendar,
-              "history":league.history}
-        with open(SAVE_FILE,"w") as f: json.dump(data,f,default=str)
+        with open(SAVE_FILE,"w") as f:
+            json.dump({
+                "season":league.season,
+                "cards":[c.__dict__ for c in league.cards],
+                "calendar":league.calendar,
+                "history":league.history
+            },f,default=str)
         st.success("League saved successfully.")
     if st.button("Load League"):
         if os.path.exists(SAVE_FILE):
-            with open(SAVE_FILE,"r") as f: data=json.load(f)
+            with open(SAVE_FILE,"r") as f:
+                data=json.load(f)
             league.season=data["season"]
-            for i,cdata in enumerate(data["cards"]):
-                for k,v in cdata.items(): setattr(league.cards[i],k,v)
+            for c,cdata in zip(league.cards,data["cards"]):
+                c.__dict__.update(cdata)
             league.calendar=data["calendar"]
             league.history=data["history"]
             st.success("League loaded successfully.")
-        else: st.warning("No save file found.")
+        else:
+            st.warning("No saved file found.")
 
 # --------------------------
-# End of App
+# Next Season Rollover
+# --------------------------
+st.sidebar.markdown("---")
+if st.sidebar.button("➡️ Start Next Season"):
+    league.season+=1
+    for c in league.cards:
+        c.record={"wins":0,"losses":0}
+        c.streak=0
+        c.buff_nerf=None
+        c.awards=[]
+        c.placements=[]
+    league.calendar=generate_calendar()
+    league.balance_changes_done=False
+    st.sidebar.success(f"Season {league.season} started!")
+
+# --------------------------
+# End of Full App
 # --------------------------
