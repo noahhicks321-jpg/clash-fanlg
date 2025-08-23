@@ -362,20 +362,24 @@ elif tab=="📅 Calendar":
     st.dataframe(df)
 
 # --------------------------
-# Balance Changes Tab - Editable Table
+# Balance Changes Tab - Editable Table with Deltas
 # --------------------------
 elif tab=="🛠 Balance Changes":
     st.header("Balance Changes - Edit Stats in Table")
-    
-    # Prepare table data
+
+    # Prepare table data with delta columns
     data = []
     for c in league.cards:
         data.append({
             "Card": c.name,
             "ATK Damage": c.atk_dmg,
+            "ATK Damage Δ": 0,
             "ATK Speed": c.atk_speed,
+            "ATK Speed Δ": 0,
             "HP": c.health,
+            "HP Δ": 0,
             "Range": c.range,
+            "Range Δ": 0,
             "Buff/Nerf": c.buff_nerf or ""
         })
     df = pd.DataFrame(data)
@@ -387,32 +391,41 @@ elif tab=="🛠 Balance Changes":
         use_container_width=True
     )
 
+    # Update delta columns dynamically
+    for index, row in edited_df.iterrows():
+        c = next(card for card in league.cards if card.name == row["Card"])
+        edited_df.at[index, "ATK Damage Δ"] = row["ATK Damage"] - c.atk_dmg
+        edited_df.at[index, "ATK Speed Δ"] = row["ATK Speed"] - c.atk_speed
+        edited_df.at[index, "HP Δ"] = row["HP"] - c.health
+        edited_df.at[index, "Range Δ"] = row["Range"] - c.range
+
+    st.dataframe(edited_df, use_container_width=True)  # Show updated table with deltas
+
     # Confirm changes button
     if st.button("Confirm Changes"):
         changes_applied = 0
         for index, row in edited_df.iterrows():
             c = next(card for card in league.cards if card.name == row["Card"])
-            # Check if stats changed
             if (c.atk_dmg != row["ATK Damage"] or
                 c.atk_speed != row["ATK Speed"] or
                 c.health != row["HP"] or
                 c.range != row["Range"]):
-                # Record old stats in history
                 old_stats = {
                     "ATK": c.atk_dmg,
                     "ATK_Speed": c.atk_speed,
                     "HP": c.health,
                     "Range": c.range
                 }
-                c.buff_nerf = "B" if row["Buff/Nerf"].upper() == "B" else "N"
                 # Apply new stats
                 c.atk_dmg = row["ATK Damage"]
                 c.atk_speed = row["ATK Speed"]
                 c.health = row["HP"]
                 c.range = row["Range"]
+                # Update Buff/Nerf marker
+                c.buff_nerf = "B" if row["Buff/Nerf"].upper() == "B" else "N"
                 changes_applied += 1
 
-                # Save to balance history for this season
+                # Save to balance history
                 season_changes = {"Card": c.name, "Changes": old_stats}
                 league.balance_history.append({"Season": league.season, "Changes": [season_changes]})
 
@@ -481,6 +494,7 @@ if st.sidebar.button("➡️ Start Next Season"):
 # --------------------------
 # End of Full App
 # --------------------------
+
 
 
 
