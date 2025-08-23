@@ -267,19 +267,76 @@ elif tab=="🏆 Awards":
             st.write(f"{row['Emoji']} {row['Name']} ({row['Grade']}) W:{row['W']} L:{row['L']}")
 
 # --------------------------
-# Playoffs Tab
+# Playoffs Tab - Interactive Simulation
 # --------------------------
 elif tab=="⚔️ Playoffs":
     st.header("Playoffs")
-    champion,results=league.run_playoffs()
-    if not champion:
-        st.write("Playoffs have not been simulated yet.")
-    else:
-        st.write(f"🏆 Champion: {champion}")
-        for rnd, matches in results.items():
-            st.subheader(rnd)
-            for match in matches:
-                st.write(f"{match['Match']} -> Winner: {match['Winner']}")
+
+    # Initialize playoff state if not exists
+    if "playoff_bracket" not in st.session_state:
+        df_top32 = league.standings().head(PLAYOFF_TEAMS)
+        teams = df_top32["Name"].tolist()
+        random.shuffle(teams)
+        st.session_state.playoff_bracket = {
+            "round_names": ["Round of 32","Round of 16","Quarterfinals","Semifinals","Finals"],
+            "current_round": 0,
+            "bracket": teams,
+            "results": {}
+        }
+
+    ps = st.session_state.playoff_bracket
+    current_round_name = ps["round_names"][ps["current_round"]]
+    st.subheader(f"Current Round: {current_round_name}")
+
+    # Buttons to control playoff simulation
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("Simulate 1 Game"):
+            if len(ps["bracket"]) > 1:
+                t1, t2 = ps["bracket"][:2]
+                c1 = next(c for c in league.cards if c.name==t1)
+                c2 = next(c for c in league.cards if c.name==t2)
+                winner, loser = league.simulate_game(c1, c2)
+                st.write(f"{t1} vs {t2} -> Winner: {winner.name}")
+                # advance winner
+                ps["bracket"] = [winner.name] + ps["bracket"][2:]
+                ps["results"].setdefault(current_round_name, []).append({"Match":f"{t1} vs {t2}", "Winner":winner.name})
+    with col2:
+        if st.button("Simulate 1 Round"):
+            bracket_next = []
+            for i in range(0,len(ps["bracket"])-1,2):
+                t1, t2 = ps["bracket"][i], ps["bracket"][i+1]
+                c1 = next(c for c in league.cards if c.name==t1)
+                c2 = next(c for c in league.cards if c.name==t2)
+                winner, _ = league.simulate_game(c1, c2)
+                bracket_next.append(winner.name)
+                ps["results"].setdefault(current_round_name, []).append({"Match":f"{t1} vs {t2}", "Winner":winner.name})
+                st.write(f"{t1} vs {t2} -> Winner: {winner.name}")
+            ps["bracket"] = bracket_next
+            ps["current_round"] += 1
+    with col3:
+        if st.button("Simulate Full Playoffs"):
+            while ps["current_round"] < len(ps["round_names"]):
+                bracket_next = []
+                current_round_name = ps["round_names"][ps["current_round"]]
+                for i in range(0,len(ps["bracket"])-1,2):
+                    t1, t2 = ps["bracket"][i], ps["bracket"][i+1]
+                    c1 = next(c for c in league.cards if c.name==t1)
+                    c2 = next(c for c in league.cards if c.name==t2)
+                    winner, _ = league.simulate_game(c1, c2)
+                    bracket_next.append(winner.name)
+                    ps["results"].setdefault(current_round_name, []).append({"Match":f"{t1} vs {t2}", "Winner":winner.name})
+                ps["bracket"] = bracket_next
+                ps["current_round"] += 1
+            champion = ps["bracket"][0]
+            next(c for c in league.cards if c.name==champion).championships +=1
+            st.success(f"🏆 Playoffs Complete! Champion: {champion}")
+    
+    # Display results so far
+    for rnd, matches in ps["results"].items():
+        st.write(f"**{rnd}**")
+        for m in matches:
+            st.write(f"{m['Match']} -> Winner: {m['Winner']}")
 
 # --------------------------
 # Calendar Tab
@@ -373,4 +430,5 @@ if st.sidebar.button("➡️ Start Next Season"):
 # --------------------------
 # End of Full App
 # --------------------------
+
 
