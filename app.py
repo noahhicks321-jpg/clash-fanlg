@@ -1,5 +1,5 @@
 # ==========================
-# Clash Royale League - Single File (Updated with Manual Stat Editing)
+# Clash Royale League - Single File App
 # ==========================
 # Libraries
 import streamlit as st
@@ -129,13 +129,12 @@ class ClashLeague:
             w,l = c.record["wins"],c.record["losses"]
             data.append({"Name":c.name,"W":w,"L":l,"Win%":round(w/(w+l+0.001),3),
                          "OVR":c.overall_rating(),"Grade":c.grade(),
-                         "Streak":c.streak,"Logo":str(c.logo_path)})
+                         "Streak":c.streak,"Logo":str(c.logo_path),
+                         "atk_dmg":c.atk_dmg,"atk_speed":c.atk_speed,
+                         "range":c.range,"health":c.health,"atk_type":c.atk_type,"card_speed":c.card_speed})
         df=pd.DataFrame(data)
         return df.sort_values(by=["W","OVR"],ascending=False).reset_index(drop=True)
 
-    # --------------------------
-    # Playoffs, Awards, Balance Changes, Save/Load
-    # --------------------------
     def run_playoffs(self):
         df = self.standings().head(PLAYOFF_TEAMS)
         teams = df["Name"].tolist()
@@ -220,7 +219,7 @@ class ClashLeague:
                 self.cards.append(c)
 
 # --------------------------
-# INITIALIZATION
+# INITIALIZE LEAGUE
 # --------------------------
 if "league" not in st.session_state:
     st.session_state.league = ClashLeague()
@@ -232,8 +231,9 @@ league = st.session_state.league
 tab = st.sidebar.radio("Select Tab", ["Home","Card Stats","Standings","Card Info","Awards","Playoffs","Calendar","Balance Changes","Save/Load"])
 
 # --------------------------
-# UI: HOME TAB
+# UI LOGIC
 # --------------------------
+# HOME TAB
 if tab=="Home":
     st.title(f"Clash Royale League - Season {league.season}")
     top10 = league.standings().head(10)
@@ -249,24 +249,18 @@ if tab=="Home":
     if col5.button("Full Season"): league.simulate_games(SEASON_GAMES)
     st.write("Simulation complete.")
 
-# --------------------------
-# UI: CARD STATS TAB
-# --------------------------
+# CARD STATS TAB
 elif tab=="Card Stats":
     df=league.standings()
     st.dataframe(df[["Name","OVR","Grade","atk_dmg","atk_speed","range","health","atk_type","card_speed"]])
 
-# --------------------------
-# UI: STANDINGS TAB
-# --------------------------
+# STANDINGS TAB
 elif tab=="Standings":
     df=league.standings()
     season_option=st.selectbox("Season", [league.season]+[h["season"] for h in league.history])
     st.dataframe(df)
 
-# --------------------------
-# UI: CARD INFO TAB
-# --------------------------
+# CARD INFO TAB
 elif tab=="Card Info":
     name_option=st.selectbox("Select Card",[c.name for c in league.cards])
     c=next(c for c in league.cards if c.name==name_option)
@@ -278,16 +272,12 @@ elif tab=="Card Info":
     st.write(f"Championships: {c.championships}")
     st.write(f"Previous Placements: {c.placements}")
 
-# --------------------------
-# UI: AWARDS TAB
-# --------------------------
+# AWARDS TAB
 elif tab=="Awards":
     awards = league.assign_awards()
     st.write(awards)
 
-# --------------------------
-# UI: PLAYOFFS TAB
-# --------------------------
+# PLAYOFFS TAB
 elif tab=="Playoffs":
     champ,results = league.run_playoffs()
     st.write(f"Champion: {champ}")
@@ -296,22 +286,17 @@ elif tab=="Playoffs":
         for match in res:
             st.write(match)
 
-# --------------------------
-# UI: CALENDAR TAB
-# --------------------------
+# CALENDAR TAB
 elif tab=="Calendar":
     cal = pd.DataFrame(league.calendar)
     st.dataframe(cal)
 
-# --------------------------
-# UI: BALANCE CHANGES / MANUAL STAT EDITING TAB
-# --------------------------
+# BALANCE CHANGES TAB
 elif tab=="Balance Changes":
     st.subheader("Manual Card Stat Editing (Max 11 cards)")
     edited_cards = []
     selectable_cards = [c.name for c in league.cards]
     num_to_edit = st.slider("Number of cards to edit", min_value=1, max_value=MAX_BALANCE_CHANGE, value=1)
-
     for i in range(num_to_edit):
         card_name = st.selectbox(f"Select Card #{i+1}", selectable_cards, key=f"card_select_{i}")
         card = next(c for c in league.cards if c.name==card_name)
@@ -327,7 +312,6 @@ elif tab=="Balance Changes":
             "range": range_stat,
             "atk_speed": atk_speed
         })
-        # Remove selected card from options for next selectbox
         selectable_cards.remove(card_name)
 
     if st.button("Apply Changes"):
@@ -337,9 +321,13 @@ elif tab=="Balance Changes":
         for c in applied:
             st.write(f"{c['name']} diffs: {c['diffs']}")
 
-# --------------------------
-# UI: SAVE / LOAD TAB
-# --------------------------
+        # Top 10 Chart
+        top10 = league.standings().head(10)
+        chart_df = top10[["Name","OVR"]].set_index("Name")
+        st.subheader("Top 10 Cards (After Changes)")
+        st.bar_chart(chart_df)
+
+# SAVE / LOAD TAB
 elif tab=="Save/Load":
     if st.button("Save League"): league.save(); st.success("League saved!")
     if st.button("Load League"): league.load(); st.success("League loaded!")
