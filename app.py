@@ -133,14 +133,41 @@ with main:
         simulate_games(n_games)
         st.success(f"Simulated {n_games} games! Standings updated.")
 
-# -------------------- BALANCE CHANGES --------------------
+# -------------------- BALANCE CHANGES (EDITABLE) --------------------
 with balance:
     st.subheader("⚖️ Balance Changes")
     search_name = st.text_input("🔍 Search Card")
     filtered = st.session_state.cards
     if search_name:
         filtered = filtered[filtered["Name"].str.contains(search_name, case=False)]
-    st.dataframe(rank_table(filtered.sort_values(["W","OVR"], ascending=False)))
+
+    st.write("Edit card stats and apply balance changes:")
+    for i, row in filtered.iterrows():
+        st.markdown(f"**{row['Emoji']} {row['Name']}** (OVR: {row['OVR']}, Grade: {row['Grade']})")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            new_dmg = st.number_input(f"AtkDmg {row['Name']}", min_value=1, max_value=2000, value=int(row['AtkDmg']), key=f"dmg_{row['Name']}")
+        with col2:
+            new_spd = st.number_input(f"AtkSpd {row['Name']}", min_value=0.1, max_value=5.0, value=float(row['AtkSpd']), step=0.1, key=f"spd_{row['Name']}")
+        with col3:
+            new_rng = st.number_input(f"Range {row['Name']}", min_value=0.1, max_value=20.0, value=float(row['Range']), step=0.1, key=f"rng_{row['Name']}")
+        with col4:
+            new_hp = st.number_input(f"HP {row['Name']}", min_value=1, max_value=10000, value=int(row['HP']), key=f"hp_{row['Name']}")
+
+        if st.button(f"Apply Changes", key=f"apply_{row['Name']}"):
+            old_stats = row[["AtkDmg","AtkSpd","Range","HP"]].to_dict()
+            st.session_state.cards.loc[st.session_state.cards["Name"]==row['Name'], ["AtkDmg","AtkSpd","Range","HP"]] = [new_dmg,new_spd,new_rng,new_hp]
+            ovr = calculate_ovr({"AtkDmg":new_dmg,"AtkSpd":new_spd,"Range":new_rng,"HP":new_hp})
+            grade = assign_grade(ovr)
+            st.session_state.cards.loc[st.session_state.cards["Name"]==row['Name'], ["OVR","Grade"]] = [ovr, grade]
+            st.session_state.balance_history.append({
+                "Card": row['Name'],
+                "Season": len(st.session_state.season_history)+1,
+                "Before": old_stats,
+                "After": {"AtkDmg":new_dmg,"AtkSpd":new_spd,"Range":new_rng,"HP":new_hp},
+                "Change": {k: new_dmg-old_stats[k] if k=="AtkDmg" else new_spd-old_stats[k] if k=="AtkSpd" else new_rng-old_stats[k] if k=="Range" else new_hp-old_stats[k] for k in old_stats}
+            })
+            st.success(f"Updated {row['Name']}! New OVR: {ovr}, Grade: {grade}")
 
 # -------------------- HISTORY --------------------
 with history:
