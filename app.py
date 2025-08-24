@@ -120,30 +120,9 @@ def color_grade(val):
     return f"background-color:{colors.get(val,'white')};color:black;font-weight:bold;"
 
 def remove_from_season(name):
-    # Find the card
-    idx = st.session_state.cards[st.session_state.cards["Name"]==name].index
-    if len(idx) == 0:
-        st.warning(f"{name} not found.")
-        return
-    idx = idx[0]
-
-    # Store full card info in removed_cards
-    card_data = st.session_state.cards.loc[idx].to_dict()
-    st.session_state.removed_cards.append(card_data)
-
-    # Remove card from current cards
+    idx = st.session_state.cards[st.session_state.cards["Name"]==name].index[0]
+    st.session_state.removed_cards.append(st.session_state.cards.loc[idx].to_dict())
     st.session_state.cards = st.session_state.cards.drop(idx).reset_index(drop=True)
-
-    # Remove from card history
-    if name in st.session_state.card_history:
-        del st.session_state.card_history[name]
-
-    # Remove from balance history
-    st.session_state.balance_history = [h for h in st.session_state.balance_history if h["Card"] != name]
-
-    # Remove from standings snapshots
-    for season, df in st.session_state.standings_snapshots.items():
-        st.session_state.standings_snapshots[season] = df[df["Name"] != name].reset_index(drop=True)
 
 # -------------------- MAIN APP --------------------
 st.title("⚔️ Clash Royale – League Simulator ⚔️")
@@ -247,10 +226,9 @@ with removed_tab:
     st.subheader("🚪 Removed Cards")
     if st.session_state.removed_cards:
         removed_df = pd.DataFrame(st.session_state.removed_cards)
-        removed_df = rank_table(removed_df)
-        st.dataframe(removed_df.style.applymap(color_grade, subset=["Grade"]))
+        st.dataframe(rank_table(removed_df))
     else:
-        st.info("No cards removed yet.")
+        st.dataframe(pd.DataFrame(columns=st.session_state.cards.columns))
 
 # -------------------- ADD NEW CARD --------------------
 with addcard:
@@ -280,24 +258,14 @@ with profiles:
     if st.session_state.cards.empty:
         st.dataframe(pd.DataFrame(columns=st.session_state.cards.columns))
     else:
-        for i, row in st.session_state.cards.iterrows():
-            card_key = f"view_{row['Name']}"
-            remove_key = f"remove_{row['Name']}"
-            
-            # Only show card button if it hasn't been removed
-            if row['Name'] not in [c['Name'] for c in st.session_state.removed_cards]:
-                if st.button(f"{row['Emoji']} {row['Name']}", key=card_key):
-                    st.write(f"{row['Emoji']} **{row['Name']}**")
-                    st.write(f"Stats: AtkDmg {row['AtkDmg']}, AtkSpd {row['AtkSpd']}, Range {row['Range']}, HP {row['HP']}, OVR {row['OVR']} ({row['Grade']})")
-                    st.write(f"Seasons Played: {row['Seasons']}")
-                    
-                    # Remove card button
-                    if st.button(f"Remove Card", key=remove_key):
-                        remove_from_season(row['Name'])
-                        st.success(f"{row['Name']} has been removed from the league!")
-                        st.experimental_rerun()  # refresh page to update tables/buttons
-
-
+        for i,row in st.session_state.cards.iterrows():
+            if st.button(f"{row['Emoji']} {row['Name']}", key=f"view_{row['Name']}"):
+                st.write(f"{row['Emoji']} **{row['Name']}**")
+                st.write(f"Stats: AtkDmg {row['AtkDmg']}, AtkSpd {row['AtkSpd']}, Range {row['Range']}, HP {row['HP']}, OVR {row['OVR']} ({row['Grade']})")
+                st.write(f"Seasons Played: {row['Seasons']}")
+                if st.button(f"Remove from Season", key=f"remove_{row['Name']}"):
+                    remove_from_season(row['Name'])
+                    st.warning(f"{row['Name']} removed from season!")
 
 
 
