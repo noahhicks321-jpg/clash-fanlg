@@ -35,13 +35,13 @@ if "cards" not in st.session_state:
                 "AtkSpd": spd,
                 "Range": rng,
                 "HP": hp,
-                "W":0, "L":0, "OVR":ovr, "Grade":"B"
+                "W":0, "L":0, "OVR":ovr, "Grade":"B", "Seasons":0
             })
             idx += 1
     st.session_state.cards = pd.DataFrame(cards_data)
     st.session_state.balance_history = []
     st.session_state.season_history = []
-    st.session_state.retired = []
+    st.session_state.removed = []  # cards removed from season
     st.session_state.card_history = {}
     st.session_state.standings_snapshots = {}
 
@@ -57,13 +57,13 @@ def assign_grade(ovr):
     elif ovr >= 75: return "B"
     else: return "C"
 
-def simulate_season():
+def simulate_games(num_games):
     cards = st.session_state.cards.copy()
     cards["W"], cards["L"] = 0,0
     season_num = len(st.session_state.season_history)+1
 
     for idx in range(len(cards)):
-        opponents = random.choices(cards.index[cards.index != idx], k=82)
+        opponents = random.choices(cards.index[cards.index != idx], k=num_games)
         for opp in opponents:
             score_self = cards.loc[idx,"OVR"]*0.78 + random.uniform(-5,5)*0.22
             score_opp = cards.loc[opp,"OVR"]*0.78 + random.uniform(-5,5)*0.22
@@ -73,6 +73,9 @@ def simulate_season():
             else:
                 cards.loc[idx,"L"] += 1
                 cards.loc[opp,"W"] += 1
+
+    # Update season counters
+    cards["Seasons"] += 1
 
     champion = cards.sort_values(["W","OVR"], ascending=False).iloc[0]
     st.session_state.season_history.append({
@@ -99,15 +102,15 @@ def color_grade(val):
 def rank_table(df):
     df = df.copy()
     df.insert(0,"Rank",range(1,len(df)+1))
-    # Round float columns for display
-    for col in ["AtkSpd","Range"]:
+    # Round float columns
+    for col in ["AtkSpd","Range","OVR"]:
         if col in df.columns:
             df[col] = df[col].round(1)
     return df
 
-def retire_card(name):
+def remove_from_season(name):
     idx = st.session_state.cards[st.session_state.cards["Name"]==name].index[0]
-    st.session_state.retired.append(st.session_state.cards.loc[idx].to_dict())
+    st.session_state.removed.append(st.session_state.cards.loc[idx].to_dict())
     st.session_state.cards = st.session_state.cards.drop(idx).reset_index(drop=True)
 
 # -------------------- MAIN APP --------------------
@@ -115,17 +118,20 @@ st.title("⚔️ Clash Royale – League Simulator ⚔️")
 
 st.session_state.cards["Grade"] = st.session_state.cards["OVR"].apply(assign_grade)
 
-main, balance, history, retired, addcard, profiles = st.tabs([
-    "Card Stats","Balance Changes","History","Retired Cards","Add Card","Player Info"
+main, balance, history, removed_tab, addcard, profiles = st.tabs([
+    "Card Stats","Balance Changes","History","Removed Cards","Add Card","Player Info"
 ])
 
 with main:
     st.subheader("📊 Current Standings")
     standings = rank_table(st.session_state.cards.sort_values(["W","OVR"], ascending=False))
     st.dataframe(standings.style.applymap(color_grade, subset=["Grade"]))
-    if st.button("▶️ Simulate Season"):
-        simulate_season()
-        st.success("Season simulated! Standings saved.")
+    sim_choice = st.selectbox("Simulate games:", [1,5,10,25,"Full Season"])
+    if st.button("▶️ Simulate"):
+        num_games = 82 if sim_choice=="Full Season" else int(sim_choice)
+        simulate_games(num_games)
+        st.success(f"Simulated {num_games} games!")
+        st.experimental_rerun()  # refresh to show updated standings
 
 with balance:
     st.subheader("⚖️ Balance Changes")
@@ -164,17 +170,7 @@ with balance:
         st.success("Balance changes saved!")
 
 with history:
-    st.subheader("📜 Balance Change History")
-    if st.session_state.balance_history:
-        df = pd.DataFrame([{
-            "Card": h["Card"], "Season": h["Season"],
-            "Before": h["Before"], "After": h["After"], "Change": h["Change"]
-        } for h in st.session_state.balance_history])
-        st.dataframe(df)
-    else:
-        st.info("No balance changes yet.")
-
-    st.subheader("🏆 Season History")
+    st.subheader("📜 Season History")
     if st.session_state.season_history:
         st.dataframe(pd.DataFrame(st.session_state.season_history))
         season_choice = st.selectbox("View standings from season:", options=list(st.session_state.standings_snapshots.keys()))
@@ -182,13 +178,14 @@ with history:
     else:
         st.info("No seasons simulated yet.")
 
-with retired:
-    st.subheader("🚪 Retired Cards")
-    if st.session_state.retired:
-        retired_df = pd.DataFrame(st.session_state.retired)
-        st.dataframe(rank_table(retired_df))
+with removed_tab:
+    st.subheader("🚪 Removed Cards")
+    if st.session_state.removed:
+        removed_df = pd.DataFrame(st.session_state.removed)
+        removed_df["Seasons Played"] = removed_df["Seasons"]
+        st.dataframe(rank_table(removed_df))
     else:
-        st.info("No retired cards.")
+        st.info("No cards removed.")
 
 with addcard:
     st.subheader("➕ Add New Card")
@@ -198,23 +195,24 @@ with addcard:
     spd = st.number_input("Attack Speed",0.5,3.0,1.5,step=0.1)
     rng = st.number_input("Range",0.5,10.0,3.0,step=0.1)
     hp = st.number_input("HP",100,5000,800)
+    ovr_preview = calculate_ovr({"AtkDmg":dmg,"AtkSpd":spd,"Range":rng,"HP":hp})
+    grade_preview = assign_grade(ovr_preview)
+    st.write(f"Card Preview – OVR: {ovr_preview}, Grade: {grade_preview}")
     if st.button("➕ Add Card"):
         new_card = {"Emoji":emoji,"Name":name,"AtkDmg":dmg,"AtkSpd":spd,
-                    "Range":rng,"HP":hp,"W":0,"L":0,"OVR":0,"Grade":"C"}
+                    "Range":rng,"HP":hp,"OVR":ovr_preview,"Grade":grade_preview,"W":0,"L":0,"Seasons":0}
         st.session_state.cards = pd.concat([st.session_state.cards,pd.DataFrame([new_card])],ignore_index=True)
         st.success(f"{name} added!")
 
 with profiles:
     st.subheader("📖 Player Info Pages")
     for i,row in st.session_state.cards.iterrows():
-        if st.button(f"View {row['Name']}"):
+        if st.button(f"View {row['Emoji']} {row['Name']}"):
             st.write(f"{row['Emoji']} **{row['Name']}**")
             st.write(f"Stats: AtkDmg {row['AtkDmg']}, AtkSpd {row['AtkSpd']}, Range {row['Range']}, HP {row['HP']}, OVR {row['OVR']} ({row['Grade']})")
-            if st.button(f"Retire {row['Name']}"):
-                retire_card(row['Name'])
-                st.warning(f"{row['Name']} retired!")
-            changes = [h for h in st.session_state.balance_history if h["Card"]==row["Name"]]
-            if changes:
-                st.table(pd.DataFrame([{"Season":h["Season"], "Change":h["Change"]} for h in changes]))
+            if st.button(f"Remove from Season {row['Name']}"):
+                remove_from_season(row['Name'])
+                st.warning(f"{row['Name']} removed from season!")
+                st.experimental_rerun()
             if row["Name"] in st.session_state.card_history:
-                st.table(pd.DataFrame(st.session_state.card_history[row["Name"]]))
+                st.dataframe(pd.DataFrame(st.session_state.card_history[row["Name"]]))
