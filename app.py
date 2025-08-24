@@ -128,10 +128,10 @@ with main:
     games_to_sim = st.selectbox("Simulate how many games?", [1,5,10,25,"Full Season"])
     n_games = 82 if games_to_sim=="Full Season" else int(games_to_sim)
 
-    if st.button("▶️ Simulate"):
+    if st.button("▶️ Simulate Season", key="simulate_season"):
         simulate_games(n_games)
         st.success(f"Simulated {n_games} games! Standings updated.")
-        st.experimental_rerun()
+        st.experimental_rerun()  # Safe now, only called once per button
 
 with balance:
     st.subheader("⚖️ Balance Changes")
@@ -157,13 +157,14 @@ with addcard:
     spd = st.number_input("Attack Speed",0.5,3.0,1.5,step=0.1)
     rng = st.number_input("Range",0.5,10.0,3.0,step=0.1)
     hp = st.number_input("HP",100,5000,800)
-    if st.button("➕ Add Card"):
+    if st.button("➕ Add Card", key="add_card"):
         ovr = calculate_ovr({"AtkDmg":dmg,"AtkSpd":spd,"Range":rng,"HP":hp})
         grade = assign_grade(ovr)
         new_card = {"Emoji":emoji,"Name":name,"AtkDmg":dmg,"AtkSpd":spd,
                     "Range":rng,"HP":hp,"W":0,"L":0,"OVR":ovr,"Grade":grade,"Seasons":0}
         st.session_state.cards = pd.concat([st.session_state.cards,pd.DataFrame([new_card])],ignore_index=True)
         st.success(f"{name} added! OVR: {ovr}, Grade: {grade}")
+        st.experimental_rerun()
 
 with profiles:
     st.subheader("📖 Player Info Pages")
@@ -172,7 +173,7 @@ with profiles:
             st.write(f"{row['Emoji']} **{row['Name']}**")
             st.write(f"Stats: AtkDmg {row['AtkDmg']}, AtkSpd {row['AtkSpd']}, Range {row['Range']}, HP {row['HP']}, OVR {row['OVR']} ({row['Grade']})")
             st.write(f"Seasons Played: {row['Seasons']}")
-            if st.button(f"Remove from Season {row['Name']}", key=f"remove_{row['Name']}"):
+            if st.button(f"Remove from Season", key=f"remove_{row['Name']}"):
                 remove_from_season(row['Name'])
                 st.warning(f"{row['Name']} removed from season!")
                 st.experimental_rerun()
