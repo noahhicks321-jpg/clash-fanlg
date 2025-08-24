@@ -21,14 +21,24 @@ def save_game():
 
 def load_game():
     if os.path.exists(SAVE_FILE):
-        with open(SAVE_FILE,"r") as f:
-            data = json.load(f)
-        st.session_state.cards = pd.DataFrame(data["cards"])
-        st.session_state.balance_history = data["balance_history"]
-        st.session_state.season_history = data["season_history"]
-        st.session_state.removed_cards = data["removed_cards"]
-        st.session_state.card_history = data["card_history"]
-        st.session_state.standings_snapshots = {int(k): pd.DataFrame(v) for k,v in data["standings_snapshots"].items()}
+        try:
+            with open(SAVE_FILE,"r") as f:
+                data = json.load(f)
+            st.session_state.cards = pd.DataFrame(data["cards"])
+            st.session_state.balance_history = data["balance_history"]
+            st.session_state.season_history = data["season_history"]
+            st.session_state.removed_cards = data["removed_cards"]
+            st.session_state.card_history = data["card_history"]
+            st.session_state.standings_snapshots = {int(k): pd.DataFrame(v) for k,v in data["standings_snapshots"].items()}
+        except (json.JSONDecodeError, KeyError):
+            st.warning("Saved game file is empty or corrupted. Starting a new game...")
+            # Reset session state
+            st.session_state.cards = pd.DataFrame()
+            st.session_state.balance_history = []
+            st.session_state.season_history = []
+            st.session_state.removed_cards = []
+            st.session_state.card_history = {}
+            st.session_state.standings_snapshots = {}
 
 # -------------------- INITIAL DATA --------------------
 CARD_POOL = [
@@ -277,3 +287,4 @@ with profiles:
                 if st.button(f"Remove Card", key=f"remove_{row['Name']}"):
                     fully_remove_card(row['Name'])
                     st.warning(f"{row['Name']} fully removed from all data!")
+
