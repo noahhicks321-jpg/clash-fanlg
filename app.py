@@ -120,9 +120,30 @@ def color_grade(val):
     return f"background-color:{colors.get(val,'white')};color:black;font-weight:bold;"
 
 def remove_from_season(name):
-    idx = st.session_state.cards[st.session_state.cards["Name"]==name].index[0]
-    st.session_state.removed_cards.append(st.session_state.cards.loc[idx].to_dict())
+    # Find the card
+    idx = st.session_state.cards[st.session_state.cards["Name"]==name].index
+    if len(idx) == 0:
+        st.warning(f"{name} not found.")
+        return
+    idx = idx[0]
+
+    # Store full card info in removed_cards
+    card_data = st.session_state.cards.loc[idx].to_dict()
+    st.session_state.removed_cards.append(card_data)
+
+    # Remove card from current cards
     st.session_state.cards = st.session_state.cards.drop(idx).reset_index(drop=True)
+
+    # Remove from card history
+    if name in st.session_state.card_history:
+        del st.session_state.card_history[name]
+
+    # Remove from balance history
+    st.session_state.balance_history = [h for h in st.session_state.balance_history if h["Card"] != name]
+
+    # Remove from standings snapshots
+    for season, df in st.session_state.standings_snapshots.items():
+        st.session_state.standings_snapshots[season] = df[df["Name"] != name].reset_index(drop=True)
 
 # -------------------- MAIN APP --------------------
 st.title("⚔️ Clash Royale – League Simulator ⚔️")
@@ -226,9 +247,10 @@ with removed_tab:
     st.subheader("🚪 Removed Cards")
     if st.session_state.removed_cards:
         removed_df = pd.DataFrame(st.session_state.removed_cards)
-        st.dataframe(rank_table(removed_df))
+        removed_df = rank_table(removed_df)
+        st.dataframe(removed_df.style.applymap(color_grade, subset=["Grade"]))
     else:
-        st.dataframe(pd.DataFrame(columns=st.session_state.cards.columns))
+        st.info("No cards removed yet.")
 
 # -------------------- ADD NEW CARD --------------------
 with addcard:
@@ -266,6 +288,7 @@ with profiles:
                 if st.button(f"Remove from Season", key=f"remove_{row['Name']}"):
                     remove_from_season(row['Name'])
                     st.warning(f"{row['Name']} removed from season!")
+
 
 
 
