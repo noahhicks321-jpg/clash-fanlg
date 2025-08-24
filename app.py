@@ -199,27 +199,28 @@ with history:
     else:
         # Show empty table with correct columns
         st.dataframe(pd.DataFrame(columns=["Season","Champion","Record","OVR"]))
-
-   st.subheader("⚖️ Balance Change History (Clean View)")
-if st.session_state.balance_history:
-    # Prepare a DataFrame with rounded values for display
-    clean_history = []
-    for h in st.session_state.balance_history:
-        before = {k: round(v, 1) for k,v in h["Before"].items()}
-        after = {k: round(v, 1) for k,v in h["After"].items()}
-        change = {k: round(v, 1) for k,v in h["Change"].items()}
-        clean_history.append({
-            "Card": h["Card"],
-            "Season": h["Season"],
-            "Before": str(before),
-            "After": str(after),
-            "Change": str(change)
-        })
-    
-    st.dataframe(pd.DataFrame(clean_history))
-else:
-    st.info("No balance changes yet.")
-
+        
+with history:
+    st.subheader("⚖️ Balance Change History (Clean View)")
+    if st.session_state.balance_history:
+        # Prepare a DataFrame with rounded values for display
+        clean_history = []
+        for h in st.session_state.balance_history:
+            before = {k: round(v, 1) for k,v in h["Before"].items()}
+            after = {k: round(v, 1) for k,v in h["After"].items()}
+            change = {k: round(v, 1) for k,v in h["Change"].items()}
+            clean_history.append({
+                "Card": h["Card"],
+                "Season": h["Season"],
+                "Before": str(before),
+                "After": str(after),
+                "Change": str(change)
+            })
+        
+        st.dataframe(pd.DataFrame(clean_history))
+    else:
+        st.info("No balance changes yet.")
+  
 # -------------------- REMOVED CARDS --------------------
 with removed_tab:
     st.subheader("🚪 Removed Cards")
@@ -265,6 +266,7 @@ with profiles:
                 if st.button(f"Remove from Season", key=f"remove_{row['Name']}"):
                     remove_from_season(row['Name'])
                     st.warning(f"{row['Name']} removed from season!")
+
 
 
 
