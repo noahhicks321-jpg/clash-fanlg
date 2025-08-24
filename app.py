@@ -131,7 +131,6 @@ with main:
     if st.button("▶️ Simulate Season", key="simulate_season"):
         simulate_games(n_games)
         st.success(f"Simulated {n_games} games! Standings updated.")
-        st.experimental_rerun()  # Safe now, only called once per button
 
 with balance:
     st.subheader("⚖️ Balance Changes")
@@ -164,7 +163,6 @@ with addcard:
                     "Range":rng,"HP":hp,"W":0,"L":0,"OVR":ovr,"Grade":grade,"Seasons":0}
         st.session_state.cards = pd.concat([st.session_state.cards,pd.DataFrame([new_card])],ignore_index=True)
         st.success(f"{name} added! OVR: {ovr}, Grade: {grade}")
-        st.experimental_rerun()
 
 with profiles:
     st.subheader("📖 Player Info Pages")
@@ -176,4 +174,3 @@ with profiles:
             if st.button(f"Remove from Season", key=f"remove_{row['Name']}"):
                 remove_from_season(row['Name'])
                 st.warning(f"{row['Name']} removed from season!")
-                st.experimental_rerun()
