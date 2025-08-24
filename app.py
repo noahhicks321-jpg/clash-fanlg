@@ -280,14 +280,23 @@ with profiles:
     if st.session_state.cards.empty:
         st.dataframe(pd.DataFrame(columns=st.session_state.cards.columns))
     else:
-        for i,row in st.session_state.cards.iterrows():
-            if st.button(f"{row['Emoji']} {row['Name']}", key=f"view_{row['Name']}"):
-                st.write(f"{row['Emoji']} **{row['Name']}**")
-                st.write(f"Stats: AtkDmg {row['AtkDmg']}, AtkSpd {row['AtkSpd']}, Range {row['Range']}, HP {row['HP']}, OVR {row['OVR']} ({row['Grade']})")
-                st.write(f"Seasons Played: {row['Seasons']}")
-                if st.button(f"Remove from Season", key=f"remove_{row['Name']}"):
-                    remove_from_season(row['Name'])
-                    st.warning(f"{row['Name']} removed from season!")
+        for i, row in st.session_state.cards.iterrows():
+            card_key = f"view_{row['Name']}"
+            remove_key = f"remove_{row['Name']}"
+            
+            # Only show card button if it hasn't been removed
+            if row['Name'] not in [c['Name'] for c in st.session_state.removed_cards]:
+                if st.button(f"{row['Emoji']} {row['Name']}", key=card_key):
+                    st.write(f"{row['Emoji']} **{row['Name']}**")
+                    st.write(f"Stats: AtkDmg {row['AtkDmg']}, AtkSpd {row['AtkSpd']}, Range {row['Range']}, HP {row['HP']}, OVR {row['OVR']} ({row['Grade']})")
+                    st.write(f"Seasons Played: {row['Seasons']}")
+                    
+                    # Remove card button
+                    if st.button(f"Remove Card", key=remove_key):
+                        remove_from_season(row['Name'])
+                        st.success(f"{row['Name']} has been removed from the league!")
+                        st.experimental_rerun()  # refresh page to update tables/buttons
+
 
 
 
