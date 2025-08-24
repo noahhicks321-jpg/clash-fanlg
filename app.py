@@ -47,9 +47,23 @@ if "cards" not in st.session_state:
     st.session_state.standings_snapshots = {}
 
 # -------------------- FUNCTIONS --------------------
+# -------------------- FUNCTIONS --------------------
+
 def calculate_ovr(row):
-    raw = (row["AtkDmg"]*0.4 + (1/row["AtkSpd"])*100*0.2 + row["Range"]*20*0.1 + row["HP"]*0.3)/10
-    return max(65, min(95, round(raw,1)))
+    # Weighted contribution of stats
+    dmg_score = row["AtkDmg"] * 0.4
+    spd_score = (1 / row["AtkSpd"]) * 30   # Faster attack speed = higher score
+    range_score = row["Range"] * 5         # Longer range = higher score
+    hp_score = row["HP"] * 0.2
+
+    # Sum and normalize to roughly 0-100 scale
+    raw = dmg_score + spd_score + range_score + hp_score
+
+    # Normalize based on typical card ranges
+    ovr = round((raw / 1000) * 100, 1)
+
+    # Clamp between 0 and 100
+    return max(0, min(100, ovr))
 
 def assign_grade(ovr):
     if ovr >= 93: return "S+"
@@ -242,5 +256,6 @@ with profiles:
                 if st.button(f"Remove from Season", key=f"remove_{row['Name']}"):
                     remove_from_season(row['Name'])
                     st.warning(f"{row['Name']} removed from season!")
+
 
 
