@@ -84,7 +84,7 @@ def simulate_games(n_games=82):
         "OVR": champion["OVR"]
     })
 
-    # Update card history
+    # Update card history and season count
     for _, row in cards.iterrows():
         st.session_state.card_history.setdefault(row["Name"], []).append({
             "Season": season_num, "W": row["W"], "L": row["L"], "OVR": row["OVR"]
@@ -120,6 +120,7 @@ main, balance, history, removed_tab, addcard, profiles = st.tabs([
     "Card Stats","Balance Changes","History","Removed Cards","Add Card","Player Info"
 ])
 
+# -------------------- MAIN STANDINGS --------------------
 with main:
     st.subheader("📊 Current Standings")
     standings = rank_table(st.session_state.cards.sort_values(["W","OVR"], ascending=False))
@@ -132,6 +133,7 @@ with main:
         simulate_games(n_games)
         st.success(f"Simulated {n_games} games! Standings updated.")
 
+# -------------------- BALANCE CHANGES --------------------
 with balance:
     st.subheader("⚖️ Balance Changes")
     search_name = st.text_input("🔍 Search Card")
@@ -140,6 +142,34 @@ with balance:
         filtered = filtered[filtered["Name"].str.contains(search_name, case=False)]
     st.dataframe(rank_table(filtered.sort_values(["W","OVR"], ascending=False)))
 
+# -------------------- HISTORY --------------------
+with history:
+    st.subheader("📜 Season History")
+    if st.session_state.season_history:
+        st.dataframe(pd.DataFrame(st.session_state.season_history))
+        season_choice = st.selectbox(
+            "View standings from season:",
+            options=list(st.session_state.standings_snapshots.keys())
+        )
+        st.dataframe(
+            rank_table(st.session_state.standings_snapshots[season_choice])
+            .style.applymap(color_grade, subset=["Grade"])
+        )
+    else:
+        st.info("No seasons simulated yet.")
+
+    st.subheader("⚖️ Balance Change History")
+    if st.session_state.balance_history:
+        df = pd.DataFrame([
+            {"Card": h["Card"], "Season": h["Season"], "Before": h["Before"],
+             "After": h["After"], "Change": h["Change"]}
+            for h in st.session_state.balance_history
+        ])
+        st.dataframe(df)
+    else:
+        st.info("No balance changes yet.")
+
+# -------------------- REMOVED CARDS --------------------
 with removed_tab:
     st.subheader("🚪 Removed Cards")
     if st.session_state.removed_cards:
@@ -148,6 +178,7 @@ with removed_tab:
     else:
         st.info("No cards removed.")
 
+# -------------------- ADD NEW CARD --------------------
 with addcard:
     st.subheader("➕ Add New Card")
     emoji = st.text_input("Emoji","⚔️")
@@ -164,6 +195,7 @@ with addcard:
         st.session_state.cards = pd.concat([st.session_state.cards,pd.DataFrame([new_card])],ignore_index=True)
         st.success(f"{name} added! OVR: {ovr}, Grade: {grade}")
 
+# -------------------- PLAYER PROFILES --------------------
 with profiles:
     st.subheader("📖 Player Info Pages")
     for i,row in st.session_state.cards.iterrows():
