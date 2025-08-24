@@ -48,20 +48,21 @@ if "cards" not in st.session_state:
 
 # -------------------- FUNCTIONS --------------------
 def calculate_ovr(row):
-    # Weighted contributions based on your percentages
-    dmg_score = row["AtkDmg"] * 0.32
-    spd_score = row["AtkSpd"] * 0.19
-    range_score = row["Range"] * 0.19
-    hp_score = row["HP"] * 0.30
+    # Define expected max values for normalization
+    max_dmg = 400     # adjust based on your card pool
+    max_spd = 2.0
+    max_range = 5.0
+    max_hp = 1500
 
-    # Sum the contributions
-    raw = dmg_score + spd_score + range_score + hp_score
+    # Normalize each stat (0-1) and apply weight
+    dmg_score = (row["AtkDmg"] / max_dmg) * 0.32
+    spd_score = (row["AtkSpd"] / max_spd) * 0.19
+    range_score = (row["Range"] / max_range) * 0.19
+    hp_score = (row["HP"] / max_hp) * 0.30
 
-    # Normalize or scale as needed (optional)
-    ovr = round(raw, 1)
-
-    # Clamp between 0 and 100 to avoid extremes
-    return max(0, min(100, ovr))
+    # Sum weighted normalized scores
+    ovr = (dmg_score + spd_score + range_score + hp_score) * 100  # scale back to 0-100
+    return round(ovr, 1)
 
 def assign_grade(ovr):
     if ovr >= 93: return "S+"
@@ -254,6 +255,7 @@ with profiles:
                 if st.button(f"Remove from Season", key=f"remove_{row['Name']}"):
                     remove_from_season(row['Name'])
                     st.warning(f"{row['Name']} removed from season!")
+
 
 
 
